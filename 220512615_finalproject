@@ -157,7 +157,7 @@ void loop() {
 //all humidity related checks
     if (h >= HIGH_HUMIDITY)
     {
-        if (HighHumAlertSent == false)
+        if (HighHumAlertSent == false)//check if high humidity alert should be sent
         {
             Particle.publish("high_hum", String::format("%.1f",t));
             HighHumAlertSent = true;
@@ -165,7 +165,7 @@ void loop() {
     }
     else if (h <= LOW_HUMIDITY)
     {
-        if (LowHumAlertSent == false)
+        if (LowHumAlertSent == false)//check if low humidity alert should be sent
         {
             Particle.publish("low_hum", String::format("%.1f",t));
             LowHumAlertSent = true;
