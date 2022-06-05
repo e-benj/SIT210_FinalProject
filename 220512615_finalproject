@@ -1,0 +1,192 @@
+//Ethan Benjamin
+//Student ID: 220512615
+//SIT210 T1 2022 Final Project
+
+// This #include statement was automatically added by the Particle IDE.
+#include <LiquidCrystal_I2C_Spark.h>
+
+// This #include statement was automatically added by the Particle IDE.
+#include "Adafruit_DHT_Particle.h"
+
+//define DHT22 parameters
+#define DHTPIN D5     // what pin we're connected to
+#define DHTTYPE DHT22		// DHT 22 (AM2302)
+
+//time variables
+int START_HOUR = 9;
+int END_HOUR = 16;
+
+//temperature variables
+int NIGHT_TEMP = 23;
+int DAY_TEMP = 38;
+int DANGEROUS_HIGH_TEMP = 45;
+int DANGEROUS_LOW_TEMP = 23;
+
+//humidity variables
+int HIGH_HUMIDITY = 55;
+int LOW_HUMIDITY = 10;
+
+bool LowTempAlertSent = false;
+bool HighTempAlertSent = false;
+
+bool LowHumAlertSent = false;
+bool HighHumAlertSent = false;
+
+DHT dht(DHTPIN, DHTTYPE);
+
+int LAMP_PIN = D3;
+int PAD_PIN = D4; 
+
+LiquidCrystal_I2C *lcd;
+
+void setup() {
+	Serial.begin(9600); 
+	pinMode(LAMP_PIN, OUTPUT);
+	pinMode(PAD_PIN, OUTPUT);
+	Particle.publish("state", "Lizard monitoring system");
+	//set time zone to South Africa, +9 for melbourne in winter, +10 for melbourne in summer
+	Time.zone(+2);
+	lcd = new LiquidCrystal_I2C(0x27, 16, 2);
+    lcd->init();
+    lcd->backlight();
+    lcd->clear();
+    lcd->print("***LizardCare***");
+	dht.begin();
+	delay(2000);
+}
+
+void loop() {
+// Reading temperature or humidity takes about 250 milliseconds!
+// Sensor readings may also be up to 2 seconds 'old' (its a 
+// very slow sensor)
+	float h = dht.getHumidity();
+// Read temperature as Celsius
+	float t = dht.getTempCelcius();
+  
+// Check if any reads failed and exit early (to try again).
+	if (isnan(h) || isnan(t)) {
+		Serial.println("Failed to read from DHT sensor!");
+		return;
+	}
+
+//all temperature related checks
+    int currHour = Time.hour();
+    Serial.println(currHour);
+    if ((currHour > START_HOUR) && (currHour < END_HOUR))
+    {
+        if (t >= DANGEROUS_HIGH_TEMP)
+        {
+            //send dangerous high temp alert
+            //turn off heat lamp
+            digitalWrite(LAMP_PIN, HIGH);
+            //turn off heat pad
+            digitalWrite(PAD_PIN, HIGH);
+            if (HighTempAlertSent == false) //check if high temp alert should be sent
+            {
+                Particle.publish("high_temp", String::format("%.1f",t));
+                HighTempAlertSent = true;
+            }
+        }
+        else if(t >= DAY_TEMP)
+        {
+            //turn on heat lamp
+            digitalWrite(LAMP_PIN, LOW);
+            //turn off heat pad
+            digitalWrite(PAD_PIN, HIGH);
+            HighTempAlertSent = false;
+            LowTempAlertSent = false;
+        }
+        else if (t <= DAY_TEMP)
+        {
+            //turn on heat lamp
+            digitalWrite(LAMP_PIN, LOW);
+            //turn on heat pad
+            digitalWrite(PAD_PIN, LOW);
+            HighTempAlertSent = false;
+            if (t <= DANGEROUS_LOW_TEMP)
+            {
+                if (LowTempAlertSent == false) //check if low temp alert should be sent
+                {
+                    Particle.publish("low_temp", String::format("%.1f",t));
+                    LowTempAlertSent = true;
+                }
+            }
+        }
+    }
+    else
+    {
+        if (t >= DANGEROUS_HIGH_TEMP)
+        {
+            //turn off heat lamp
+            digitalWrite(LAMP_PIN, HIGH);
+            //turn off heat pad
+            digitalWrite(PAD_PIN, HIGH);
+            //send dangerous high temp alert
+            if (HighTempAlertSent = false) //check if high temp alert should be sent
+            {
+                Particle.publish("high_temp", String::format("%.1f",t));
+                HighTempAlertSent = true;
+            }
+        }
+        else if (t >= NIGHT_TEMP)
+        {
+            //turn off heat lamp
+            digitalWrite(LAMP_PIN, HIGH);
+            //turn on heat pad
+            digitalWrite(PAD_PIN, LOW);
+            HighTempAlertSent = false;
+            LowTempAlertSent = false;
+        }
+        else if (t < NIGHT_TEMP)
+        {
+            //turn on heat pad
+            digitalWrite(PAD_PIN, LOW);
+            //turn on heat lamp
+            digitalWrite(LAMP_PIN, LOW);
+            if (t <= DANGEROUS_LOW_TEMP)
+            {
+                if (LowTempAlertSent == false) //check if low temp alert should be sent
+                {
+                    Particle.publish("low_temp", String::format("%.1f",t));
+                    LowTempAlertSent = true;
+                }
+            }
+        }
+    }
+    
+//all humidity related checks
+    if (h >= HIGH_HUMIDITY)
+    {
+        if (HighHumAlertSent == false)
+        {
+            Particle.publish("high_hum", String::format("%.1f",t));
+            HighHumAlertSent = true;
+        }
+    }
+    else if (h <= LOW_HUMIDITY)
+    {
+        if (LowHumAlertSent == false)
+        {
+            Particle.publish("low_hum", String::format("%.1f",t));
+            LowHumAlertSent = true;
+        }
+    }
+    else
+    {
+        HighHumAlertSent = false;
+        LowHumAlertSent = false;
+    }
+
+	//Ouput
+	Particle.publish("readings", String::format("{\"Hum(\%)\": %4.2f, \"Temp(°C)\": %4.2f}", h, t));
+	lcd->clear();
+	lcd->setCursor(0,0);
+	lcd->print("Temp: ");
+	lcd->print(t);
+	lcd->print("C");
+	lcd->setCursor(0,1);
+	lcd->print("Humidity: ");
+	lcd->print(h);
+	lcd->print("%");
+	delay(5000);
+}
